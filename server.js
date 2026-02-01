@@ -63,6 +63,22 @@ app.post('/api/license/activate', async (req, res) => {
     // Vérifier si la licence existe déjà
     if (licenses.has(licenseKey)) {
       const existing = licenses.get(licenseKey);
+      
+      // Si la licence a été pré-activée, permettre la réactivation avec le vrai hardwareId
+      if (existing.hardwareId === 'PRE-ACTIVATED' || existing.hardwareId === 'pre-activation-test') {
+        console.log(`🔄 Réactivation de la clé pré-activée avec le vrai hardwareId: ${licenseKey.substring(0, 8)}...`);
+        // Mettre à jour avec le vrai hardwareId
+        existing.hardwareId = hardwareId;
+        existing.activationDate = activationDate || new Date().toISOString();
+        licenses.set(licenseKey, existing);
+        
+        return res.json({
+          valid: true,
+          ...existing
+        });
+      }
+      
+      // Sinon, la licence est déjà activée sur un autre appareil
       return res.json({
         valid: false,
         message: 'Cette licence est déjà activée',
@@ -70,12 +86,16 @@ app.post('/api/license/activate', async (req, res) => {
       });
     }
 
+    // Calculer l'expiration (par défaut 1 an, mais peut être passé dans le body)
+    const expirationDays = req.body.expirationDays || 365;
+    const expiration = new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000);
+    
     // Créer la licence
     const licenseData = {
       licenseKey,
       hardwareId,
       activationDate: activationDate || new Date().toISOString(),
-      expiration: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 an
+      expiration: expiration.toISOString(),
       clientId: `client-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       clientName: 'Client',
       gameModes: {
@@ -135,8 +155,15 @@ app.post('/api/license/validate', async (req, res) => {
       });
     }
 
-    // Vérifier l'ID matériel
-    if (license.hardwareId !== hardwareId) {
+    // Si la licence a été pré-activée avec "PRE-ACTIVATED", mettre à jour avec le vrai hardwareId
+    if (license.hardwareId === 'PRE-ACTIVATED' || license.hardwareId === 'pre-activation-test') {
+      console.log(`🔄 Mise à jour du hardwareId pour la clé pré-activée: ${licenseKey.substring(0, 8)}...`);
+      license.hardwareId = hardwareId;
+      license.activationDate = new Date().toISOString();
+      licenses.set(licenseKey, license);
+    }
+    // Sinon, vérifier que l'ID matériel correspond
+    else if (license.hardwareId !== hardwareId) {
       console.log(`❌ ID matériel incorrect pour: ${licenseKey.substring(0, 8)}...`);
       return res.json({
         valid: false,
