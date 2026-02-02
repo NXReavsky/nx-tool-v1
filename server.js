@@ -100,12 +100,20 @@ app.post('/api/license/activate', async (req, res) => {
       });
     }
 
-    // Calculer l'expiration (par défaut 1 an, mais peut être passé dans le body)
-    // ⚠️ IMPORTANT : Utiliser expirationDays fourni par le générateur de clés
-    const expirationDays = req.body.expirationDays || 365;
-    const expiration = new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000);
-    
-    console.log(`📅 Création licence avec expirationDays: ${expirationDays} jours (${expiration.toISOString()})`);
+    // Calculer l'expiration
+    // ⚠️ CRITIQUE : Si expiration exacte est fournie par le générateur, l'utiliser directement
+    // Sinon, calculer à partir de expirationDays (pour compatibilité)
+    let expiration;
+    if (req.body.expiration) {
+      // Utiliser l'expiration EXACTE fournie par le générateur
+      expiration = new Date(req.body.expiration);
+      console.log(`📅 Création licence avec expiration EXACTE du générateur: ${expiration.toISOString()}`);
+    } else {
+      // Fallback : calculer à partir de expirationDays
+      const expirationDays = req.body.expirationDays || 365;
+      expiration = new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000);
+      console.log(`📅 Création licence avec expirationDays: ${expirationDays} jours (${expiration.toISOString()})`);
+    }
     
     // Créer la licence
     const licenseData = {
