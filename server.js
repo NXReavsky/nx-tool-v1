@@ -174,14 +174,10 @@ app.post('/api/license/validate', async (req, res) => {
       console.log(`🔄 Mise à jour du hardwareId pour la clé pré-activée: ${licenseKey.substring(0, 8)}...`);
       license.hardwareId = hardwareId;
       license.activationDate = new Date().toISOString();
-<<<<<<< HEAD
-      licenses.set(licenseKey, license);
-=======
       // ⚠️ IMPORTANT : Préserver l'expiration originale définie lors de la pré-activation
       // Ne pas recalculer l'expiration ici, elle a déjà été définie avec la bonne durée
       licenses.set(licenseKey, license);
       console.log(`📅 Expiration préservée: ${license.expiration}`);
->>>>>>> 7803b93 (Fix: Correction durÃ©e des clÃ©s - respecte expirationDays du gÃ©nÃ©rateur)
     }
     // Sinon, vérifier que l'ID matériel correspond
     else if (license.hardwareId !== hardwareId) {
