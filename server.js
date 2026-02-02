@@ -67,24 +67,24 @@ app.post('/api/license/activate', async (req, res) => {
       // Si la licence a été pré-activée, permettre la réactivation avec le vrai hardwareId
       if (existing.hardwareId === 'PRE-ACTIVATED' || existing.hardwareId === 'pre-activation-test') {
         console.log(`🔄 Réactivation de la clé pré-activée avec le vrai hardwareId: ${licenseKey.substring(0, 8)}...`);
+        console.log(`📅 Expiration AVANT réactivation: ${existing.expiration}`);
+        console.log(`📅 expirationDays stocké: ${existing.expirationDays || 'non défini'}`);
         
-        // ⚠️ IMPORTANT : Préserver l'expiration originale définie lors de la pré-activation
-        // Si expirationDays est fourni, recalculer l'expiration (pour permettre de modifier la durée)
-        // Sinon, conserver l'expiration originale qui a été définie avec la bonne durée lors de la pré-activation
-        if (req.body.expirationDays) {
-          const expirationDays = req.body.expirationDays;
-          const newExpiration = new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000);
-          existing.expiration = newExpiration.toISOString();
-          console.log(`📅 Expiration recalculée: ${expirationDays} jours (${newExpiration.toISOString()})`);
-        } else {
-          // Préserver l'expiration originale définie lors de la pré-activation
-          console.log(`📅 Expiration préservée: ${existing.expiration}`);
-        }
+        // ⚠️ CRITIQUE : TOUJOURS préserver l'expiration originale lors de la réactivation
+        // Ne JAMAIS recalculer l'expiration ici, même si expirationDays est fourni
+        // L'expiration a déjà été définie correctement lors de la pré-activation
+        // Si on recalcule, on perd la date d'expiration originale
         
         // Mettre à jour avec le vrai hardwareId
         existing.hardwareId = hardwareId;
-        existing.activationDate = activationDate || new Date().toISOString();
+        // ⚠️ IMPORTANT : Ne pas changer activationDate lors de la réactivation
+        // Garder l'activationDate originale de la pré-activation pour préserver la durée
+        if (!existing.activationDate) {
+          existing.activationDate = activationDate || new Date().toISOString();
+        }
         licenses.set(licenseKey, existing);
+        
+        console.log(`📅 Expiration APRÈS réactivation: ${existing.expiration}`);
         
         return res.json({
           valid: true,
@@ -176,12 +176,17 @@ app.post('/api/license/validate', async (req, res) => {
     // Si la licence a été pré-activée avec "PRE-ACTIVATED", mettre à jour avec le vrai hardwareId
     if (license.hardwareId === 'PRE-ACTIVATED' || license.hardwareId === 'pre-activation-test') {
       console.log(`🔄 Mise à jour du hardwareId pour la clé pré-activée: ${licenseKey.substring(0, 8)}...`);
+      console.log(`📅 Expiration AVANT validation: ${license.expiration}`);
       license.hardwareId = hardwareId;
-      license.activationDate = new Date().toISOString();
-      // ⚠️ IMPORTANT : Préserver l'expiration originale définie lors de la pré-activation
-      // Ne pas recalculer l'expiration ici, elle a déjà été définie avec la bonne durée
+      // ⚠️ IMPORTANT : Ne pas changer activationDate lors de la validation
+      // Garder l'activationDate originale pour préserver la durée
+      if (!license.activationDate) {
+        license.activationDate = new Date().toISOString();
+      }
+      // ⚠️ CRITIQUE : Préserver l'expiration originale définie lors de la pré-activation
+      // Ne JAMAIS recalculer l'expiration ici, elle a déjà été définie avec la bonne durée
       licenses.set(licenseKey, license);
-      console.log(`📅 Expiration préservée: ${license.expiration}`);
+      console.log(`📅 Expiration APRÈS validation: ${license.expiration}`);
     }
     // Sinon, vérifier que l'ID matériel correspond
     else if (license.hardwareId !== hardwareId) {
