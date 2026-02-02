@@ -104,13 +104,18 @@ app.post('/api/license/activate', async (req, res) => {
     // ⚠️ CRITIQUE : Si expiration exacte est fournie par le générateur, l'utiliser directement
     // Sinon, calculer à partir de expirationDays (pour compatibilité)
     let expiration;
+    let expirationDays;
+    
     if (req.body.expiration) {
       // Utiliser l'expiration EXACTE fournie par le générateur
       expiration = new Date(req.body.expiration);
-      console.log(`📅 Création licence avec expiration EXACTE du générateur: ${expiration.toISOString()}`);
+      // Calculer expirationDays à partir de l'expiration pour référence
+      const now = new Date();
+      expirationDays = Math.ceil((expiration - now) / (1000 * 60 * 60 * 24));
+      console.log(`📅 Création licence avec expiration EXACTE du générateur: ${expiration.toISOString()} (${expirationDays} jours)`);
     } else {
       // Fallback : calculer à partir de expirationDays
-      const expirationDays = req.body.expirationDays || 365;
+      expirationDays = req.body.expirationDays || 365;
       expiration = new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000);
       console.log(`📅 Création licence avec expirationDays: ${expirationDays} jours (${expiration.toISOString()})`);
     }
