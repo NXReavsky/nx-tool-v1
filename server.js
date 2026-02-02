@@ -101,8 +101,11 @@ app.post('/api/license/activate', async (req, res) => {
     }
 
     // Calculer l'expiration (par défaut 1 an, mais peut être passé dans le body)
+    // ⚠️ IMPORTANT : Utiliser expirationDays fourni par le générateur de clés
     const expirationDays = req.body.expirationDays || 365;
     const expiration = new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000);
+    
+    console.log(`📅 Création licence avec expirationDays: ${expirationDays} jours (${expiration.toISOString()})`);
     
     // Créer la licence
     const licenseData = {
@@ -110,6 +113,7 @@ app.post('/api/license/activate', async (req, res) => {
       hardwareId,
       activationDate: activationDate || new Date().toISOString(),
       expiration: expiration.toISOString(),
+      expirationDays: expirationDays, // Stocker aussi expirationDays pour référence
       clientId: `client-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       clientName: 'Client',
       gameModes: {
