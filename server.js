@@ -67,6 +67,20 @@ app.post('/api/license/activate', async (req, res) => {
       // Si la licence a été pré-activée, permettre la réactivation avec le vrai hardwareId
       if (existing.hardwareId === 'PRE-ACTIVATED' || existing.hardwareId === 'pre-activation-test') {
         console.log(`🔄 Réactivation de la clé pré-activée avec le vrai hardwareId: ${licenseKey.substring(0, 8)}...`);
+        
+        // ⚠️ IMPORTANT : Préserver l'expiration originale définie lors de la pré-activation
+        // Si expirationDays est fourni, recalculer l'expiration (pour permettre de modifier la durée)
+        // Sinon, conserver l'expiration originale qui a été définie avec la bonne durée lors de la pré-activation
+        if (req.body.expirationDays) {
+          const expirationDays = req.body.expirationDays;
+          const newExpiration = new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000);
+          existing.expiration = newExpiration.toISOString();
+          console.log(`📅 Expiration recalculée: ${expirationDays} jours (${newExpiration.toISOString()})`);
+        } else {
+          // Préserver l'expiration originale définie lors de la pré-activation
+          console.log(`📅 Expiration préservée: ${existing.expiration}`);
+        }
+        
         // Mettre à jour avec le vrai hardwareId
         existing.hardwareId = hardwareId;
         existing.activationDate = activationDate || new Date().toISOString();
@@ -160,7 +174,14 @@ app.post('/api/license/validate', async (req, res) => {
       console.log(`🔄 Mise à jour du hardwareId pour la clé pré-activée: ${licenseKey.substring(0, 8)}...`);
       license.hardwareId = hardwareId;
       license.activationDate = new Date().toISOString();
+<<<<<<< HEAD
       licenses.set(licenseKey, license);
+=======
+      // ⚠️ IMPORTANT : Préserver l'expiration originale définie lors de la pré-activation
+      // Ne pas recalculer l'expiration ici, elle a déjà été définie avec la bonne durée
+      licenses.set(licenseKey, license);
+      console.log(`📅 Expiration préservée: ${license.expiration}`);
+>>>>>>> 7803b93 (Fix: Correction durÃ©e des clÃ©s - respecte expirationDays du gÃ©nÃ©rateur)
     }
     // Sinon, vérifier que l'ID matériel correspond
     else if (license.hardwareId !== hardwareId) {
