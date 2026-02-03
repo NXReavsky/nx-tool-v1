@@ -64,27 +64,33 @@ app.post('/api/license/activate', async (req, res) => {
     if (licenses.has(licenseKey)) {
       const existing = licenses.get(licenseKey);
       
-      // Si la licence a été pré-activée, permettre la réactivation avec le vrai hardwareId
+      // ⚠️ SÉCURITÉ : Si la licence a été pré-activée, permettre UNIQUEMENT la première activation réelle
+      // Une fois activée avec un vrai hardwareId, elle est DÉFINITIVEMENT bloquée à ce PC
       if (existing.hardwareId === 'PRE-ACTIVATED' || existing.hardwareId === 'pre-activation-test') {
-        console.log(`🔄 Réactivation de la clé pré-activée avec le vrai hardwareId: ${licenseKey.substring(0, 8)}...`);
-        console.log(`📅 Expiration AVANT réactivation: ${existing.expiration}`);
+        console.log(`🔒 Première activation réelle de la clé pré-activée: ${licenseKey.substring(0, 8)}...`);
+        console.log(`📅 Expiration AVANT activation: ${existing.expiration}`);
         console.log(`📅 expirationDays stocké: ${existing.expirationDays || 'non défini'}`);
+        console.log(`🖥️ HardwareId qui sera bloqué: ${hardwareId.substring(0, 16)}...`);
         
-        // ⚠️ CRITIQUE : TOUJOURS préserver l'expiration originale lors de la réactivation
+        // ⚠️ CRITIQUE : TOUJOURS préserver l'expiration originale lors de l'activation
         // Ne JAMAIS recalculer l'expiration ici, même si expirationDays est fourni
         // L'expiration a déjà été définie correctement lors de la pré-activation
-        // Si on recalcule, on perd la date d'expiration originale
         
-        // Mettre à jour avec le vrai hardwareId
+        // ⚠️ BLOQUER DÉFINITIVEMENT la clé au hardwareId de l'utilisateur
+        // Cette clé ne pourra plus jamais être utilisée sur un autre PC
         existing.hardwareId = hardwareId;
-        // ⚠️ IMPORTANT : Ne pas changer activationDate lors de la réactivation
+        existing.isLocked = true; // Flag pour indiquer que la clé est verrouillée
+        existing.lockedAt = new Date().toISOString(); // Date de verrouillage
+        
+        // ⚠️ IMPORTANT : Ne pas changer activationDate lors de l'activation
         // Garder l'activationDate originale de la pré-activation pour préserver la durée
         if (!existing.activationDate) {
           existing.activationDate = activationDate || new Date().toISOString();
         }
         licenses.set(licenseKey, existing);
         
-        console.log(`📅 Expiration APRÈS réactivation: ${existing.expiration}`);
+        console.log(`✅ Clé BLOQUÉE au hardwareId: ${hardwareId.substring(0, 16)}...`);
+        console.log(`📅 Expiration APRÈS activation: ${existing.expiration}`);
         
         return res.json({
           valid: true,
@@ -92,11 +98,17 @@ app.post('/api/license/activate', async (req, res) => {
         });
       }
       
-      // Sinon, la licence est déjà activée sur un autre appareil
+      // ⚠️ SÉCURITÉ : La licence est déjà activée et verrouillée sur un autre appareil
+      // Refuser catégoriquement toute nouvelle activation
+      console.log(`🚫 Tentative d'activation d'une clé déjà verrouillée: ${licenseKey.substring(0, 8)}...`);
+      console.log(`   HardwareId actuel de la clé: ${existing.hardwareId.substring(0, 16)}...`);
+      console.log(`   HardwareId de la tentative: ${hardwareId.substring(0, 16)}...`);
+      
       return res.json({
         valid: false,
-        message: 'Cette licence est déjà activée',
-        existingHardwareId: existing.hardwareId.substring(0, 8) + '...'
+        message: 'Cette licence est déjà activée et verrouillée sur un autre appareil',
+        existingHardwareId: existing.hardwareId.substring(0, 8) + '...',
+        isLocked: existing.isLocked || false
       });
     }
 
@@ -121,6 +133,7 @@ app.post('/api/license/activate', async (req, res) => {
     }
     
     // Créer la licence
+    // ⚠️ SÉCURITÉ : Marquer la clé comme verrouillée dès sa création
     const licenseData = {
       licenseKey,
       hardwareId,
@@ -134,6 +147,8 @@ app.post('/api/license/activate', async (req, res) => {
         warzone: true,
         cdl: false
       },
+      isLocked: true, // La clé est immédiatement verrouillée au hardwareId
+      lockedAt: new Date().toISOString(), // Date de verrouillage
       createdAt: new Date().toISOString()
     };
 
@@ -186,11 +201,17 @@ app.post('/api/license/validate', async (req, res) => {
       });
     }
 
-    // Si la licence a été pré-activée avec "PRE-ACTIVATED", mettre à jour avec le vrai hardwareId
+    // ⚠️ SÉCURITÉ : Si la licence a été pré-activée, la bloquer au hardwareId lors de la première validation
     if (license.hardwareId === 'PRE-ACTIVATED' || license.hardwareId === 'pre-activation-test') {
-      console.log(`🔄 Mise à jour du hardwareId pour la clé pré-activée: ${licenseKey.substring(0, 8)}...`);
+      console.log(`🔒 Première validation réelle - Blocage de la clé pré-activée: ${licenseKey.substring(0, 8)}...`);
       console.log(`📅 Expiration AVANT validation: ${license.expiration}`);
+      console.log(`🖥️ HardwareId qui sera bloqué: ${hardwareId.substring(0, 16)}...`);
+      
+      // ⚠️ BLOQUER DÉFINITIVEMENT la clé au hardwareId de l'utilisateur
       license.hardwareId = hardwareId;
+      license.isLocked = true; // Flag pour indiquer que la clé est verrouillée
+      license.lockedAt = new Date().toISOString(); // Date de verrouillage
+      
       // ⚠️ IMPORTANT : Ne pas changer activationDate lors de la validation
       // Garder l'activationDate originale pour préserver la durée
       if (!license.activationDate) {
@@ -199,14 +220,21 @@ app.post('/api/license/validate', async (req, res) => {
       // ⚠️ CRITIQUE : Préserver l'expiration originale définie lors de la pré-activation
       // Ne JAMAIS recalculer l'expiration ici, elle a déjà été définie avec la bonne durée
       licenses.set(licenseKey, license);
+      
+      console.log(`✅ Clé BLOQUÉE au hardwareId: ${hardwareId.substring(0, 16)}...`);
       console.log(`📅 Expiration APRÈS validation: ${license.expiration}`);
     }
-    // Sinon, vérifier que l'ID matériel correspond
+    // ⚠️ SÉCURITÉ : Vérifier que l'ID matériel correspond exactement
     else if (license.hardwareId !== hardwareId) {
       console.log(`❌ ID matériel incorrect pour: ${licenseKey.substring(0, 8)}...`);
+      console.log(`   HardwareId attendu: ${license.hardwareId.substring(0, 16)}...`);
+      console.log(`   HardwareId reçu: ${hardwareId.substring(0, 16)}...`);
+      console.log(`   Clé verrouillée: ${license.isLocked ? 'OUI' : 'NON'}`);
+      
       return res.json({
         valid: false,
-        message: 'Licence liée à un autre appareil'
+        message: 'Licence liée à un autre appareil. Cette clé est verrouillée au PC d\'origine.',
+        isLocked: license.isLocked || false
       });
     }
 
@@ -250,6 +278,8 @@ app.get('/api/license/list', (req, res) => {
     clientId: license.clientId,
     activationDate: license.activationDate,
     expiration: license.expiration,
+    isLocked: license.isLocked || false,
+    lockedAt: license.lockedAt || null,
     isValid: new Date() < new Date(license.expiration)
   }));
 
